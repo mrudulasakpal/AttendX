@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Portal - AttendX</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+</head>
+<body>
+    <div class="dashboard-container w-full" style="width: 100%; max-width: 800px;">
+        <div class="glass-panel" style="max-width: 100%;">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Welcome, <span id="student-roll" style="color: var(--primary);">Student</span></h2>
+                    <p class="subtitle">Student Attendance Portal</p>
+                </div>
+                <div>
+                    <span class="badge">Student Portal</span>
+                    <button class="logout-btn" onclick="logout()" style="margin-left: 1rem;">Logout</button>
+                </div>
+            </div>
+
+            <div class="scanner-section">
+                <h3>Scan QR Code</h3>
+                <p class="subtitle" style="margin-bottom: 1rem;">Point your camera at the teacher's QR code to mark attendance.</p>
+                
+                <div id="reader"></div>
+                
+                <div id="scan-status" class="status-message"></div>
+                
+                <button class="btn" id="start-btn" onclick="startScanner()" style="max-width: 300px; margin: 1.5rem auto 0;">Start Camera</button>
+                <button class="btn btn-secondary" id="stop-btn" onclick="stopScanner()" style="max-width: 300px; margin: 1rem auto 0; display: none;">Stop Camera</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        if(localStorage.getItem('role') !== 'student') {
+            window.location.href = '/';
+        }
+        
+        const rollNumber = localStorage.getItem('username');
+        document.getElementById('student-roll').innerText = rollNumber;
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        let html5QrcodeScanner;
+        let isProcessing = false;
+
+        function startScanner() {
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'flex';
+            document.getElementById('scan-status').style.display = 'none';
+            
+            html5QrcodeScanner = new Html5Qrcode("reader");
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+
+            html5QrcodeScanner.start({ facingMode: "environment" }, config, onScanSuccess, onScanFailure)
+            .catch((err) => {
+                const statusDiv = document.getElementById('scan-status');
+                statusDiv.style.display = 'block';
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerText = `Error starting camera: ${err.message || err}`;
+                document.getElementById('start-btn').style.display = 'flex';
+                document.getElementById('stop-btn').style.display = 'none';
+            });
+        }
+
+        function stopScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.stop().then(() => {
+                    document.getElementById('start-btn').style.display = 'flex';
+                    document.getElementById('stop-btn').style.display = 'none';
+                }).catch(err => {
+                    console.error("Failed to stop scanner", err);
+                });
+            }
+        }
+
+        async function onScanSuccess(decodedText, decodedResult) {
+            if (isProcessing) return;
+            isProcessing = true;
+            
+            // Stop scanning visually to indicate capture and process
+            stopScanner();
+            
+            const statusDiv = document.getElementById('scan-status');
+            statusDiv.style.display = 'block';
+            statusDiv.className = 'status-message';
+            statusDiv.style.color = '#fff';
+            statusDiv.innerText = 'Processing attendance...';
+
+            try {
+                const response = await fetch('/api/scan_qr', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ token: decodedText, roll_number: rollNumber })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    statusDiv.className = 'status-message status-success';
+                    statusDiv.innerText = data.message || 'Attendance Marked Successfully!';
+                } else {
+                    statusDiv.className = 'status-message status-error';
+                    statusDiv.innerText = data.detail || 'Failed to mark attendance';
+                }
+            } catch (err) {
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerText = 'Server connection error';
+            }
+            
+            // Allow another scan after a delay if they want, but usually stopping is good
+            setTimeout(() => {
+                isProcessing = false;
+            }, 3000);
+        }
+
+        function onScanFailure(error) {
+            // handle scan failure, usually better to ignore and keep scanning
+            // console.warn(`Code scan error = ${error}`);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Faculty Portal - AttendX</title>
+    <link rel="stylesheet" href="/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container w-full" style="width: 100%; max-width: 800px;">
+        <div class="glass-panel" style="max-width: 100%;">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Welcome, <span id="faculty-name" style="color: var(--primary);">Faculty</span></h2>
+                    <p class="subtitle">Faculty Dashboard Dashboard</p>
+                </div>
+                <div>
+                    <span class="badge">Teacher Portal</span>
+                    <button class="logout-btn" onclick="logout()" style="margin-left: 1rem;">Logout</button>
+                </div>
+            </div>
+
+            <div class="qr-section">
+                <h3>Attendance QR Code</h3>
+                <p class="subtitle" style="margin-bottom: 1rem;">Generate a new QR code for today's session. Ask students to scan this.</p>
+                
+                <button class="btn" style="width: auto; margin: 0 auto;" onclick="generateQR()">Generate New Session QR</button>
+                
+                <div id="qrcode-container" style="display: none;">
+                    <div id="qrcode"></div>
+                    <p style="color: var(--bg-dark); font-weight: 600; margin-top: 1rem;">Session Active</p>
+                </div>
+            </div>
+            
+            <div style="text-align: center; margin-top: 2rem; padding-top: 2rem; border-top: 1px solid var(--surface-border);">
+                <h3>Class Data</h3>
+                <p class="subtitle" style="margin-bottom: 1rem;">Download the latest attendance sheet containing scanned entries.</p>
+                <a href="/api/download_excel" class="btn btn-secondary" style="width: auto; margin: 0 auto; display: inline-flex;">Download Excel Sheet</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if user is logged in
+        if(localStorage.getItem('role') !== 'teacher') {
+            window.location.href = '/';
+        }
+        
+        document.getElementById('faculty-name').innerText = localStorage.getItem('username');
+
+        function logout() {
+            localStorage.clear();
+            window.location.href = '/';
+        }
+
+        async function generateQR() {
+            try {
+                const response = await fetch('/api/generate_qr', { method: 'POST' });
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const token = data.token;
+                    const qrContainer = document.getElementById('qrcode-container');
+                    const qrDiv = document.getElementById('qrcode');
+                    
+                    // Clear previous QR
+                    qrDiv.innerHTML = '';
+                    qrContainer.style.display = 'inline-block';
+                    
+                    // Generate new QR Code
+                    new QRCode(qrDiv, {
+                        text: token,
+                        width: 256,
+                        height: 256,
+                        colorDark : "#0a0e17",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                } else {
+                    alert('Failed to generate QR code');
+                }
+            } catch (error) {
+                console.error('Error generating QR:', error);
+                alert('Server connection error');
+            }
+        }
+    </script>
+</body>
+</html>

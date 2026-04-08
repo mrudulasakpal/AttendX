@@ -14,14 +14,17 @@ excel_manager.initialize_excel()
 
 app = FastAPI(title="AttendX")
 
-# Create directories if they don't exist
-os.makedirs("static", exist_ok=True)
-os.makedirs("templates", exist_ok=True)
+templates = Jinja2Templates(directory=".")
 
-# Mount static files (css, js, images)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+@app.get("/style.css")
+def get_style():
+    return FileResponse("style.css")
 
-templates = Jinja2Templates(directory="templates")
+@app.get("/logo.png")
+def get_logo():
+    if os.path.exists("logo.png"):
+        return FileResponse("logo.png")
+    raise HTTPException(status_code=404)
 
 # Dependency
 def get_db():
