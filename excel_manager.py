@@ -9,21 +9,26 @@ def initialize_excel():
         workbook = openpyxl.Workbook()
         sheet = workbook.active
         sheet.title = "Attendance"
-        sheet.append(["Date", "Time", "Roll Number", "Status"])
+        sheet.append(["Date", "Time", "Session ID", "Roll Number", "Status"])
         workbook.save(EXCEL_FILE)
 
-def mark_attendance(roll_number: str):
+def mark_attendance(roll_number: str, session_id: int, session_time: datetime):
     initialize_excel()
     workbook = openpyxl.load_workbook(EXCEL_FILE)
     sheet = workbook.active
     
-    # Check if already marked today
-    today_str = datetime.now().strftime("%Y-%m-%d")
+    # Check if already marked for this specific session in Excel
     for row in sheet.iter_rows(min_row=2, values_only=True):
-        if row[0] == today_str and row[2] == roll_number:
+        if row[2] == session_id and row[3] == roll_number:
             return False # already marked
             
     now = datetime.now()
-    sheet.append([now.strftime("%Y-%m-%d"), now.strftime("%H:%M:%S"), roll_number, "Present"])
+    sheet.append([
+        session_time.strftime("%Y-%m-%d"), 
+        session_time.strftime("%H:%M:%S"), 
+        session_id,
+        roll_number, 
+        "Present"
+    ])
     workbook.save(EXCEL_FILE)
     return True

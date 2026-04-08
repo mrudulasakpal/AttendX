@@ -25,11 +25,23 @@
                 <h3>Attendance QR Code</h3>
                 <p class="subtitle" style="margin-bottom: 1rem;">Generate a new QR code for today's session. Ask students to scan this.</p>
                 
+                <div style="margin-bottom: 1.5rem; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;">
+                    <label for="duration" style="font-weight: 600; font-size: 0.9rem;">Session Duration:</label>
+                    <select id="duration" class="input-field" style="width: auto; padding: 0.5rem 2rem; background: var(--surface); color: white; border: 1px solid var(--surface-border); border-radius: 8px;">
+                        <option value="5">5 Minutes</option>
+                        <option value="15">15 Minutes</option>
+                        <option value="30">30 Minutes</option>
+                        <option value="60" selected>1 Hour</option>
+                        <option value="120">2 Hours</option>
+                    </select>
+                </div>
+
                 <button class="btn" style="width: auto; margin: 0 auto;" onclick="generateQR()">Generate New Session QR</button>
                 
                 <div id="qrcode-container" style="display: none;">
                     <div id="qrcode"></div>
                     <p style="color: var(--bg-dark); font-weight: 600; margin-top: 1rem;">Session Active</p>
+                    <p id="expiry-time" style="font-size: 0.8rem; color: #666; margin-top: -0.5rem;"></p>
                 </div>
             </div>
             
@@ -56,33 +68,76 @@
 
         async function generateQR() {
             try {
-                const response = await fetch('/api/generate_qr', { method: 'POST' });
-                const data = await response.json();
-                
-                if (response.ok) {
-                    const token = data.token;
-                    const qrContainer = document.getElementById('qrcode-container');
-                    const qrDiv = document.getElementById('qrcode');
-                    
-                    // Clear previous QR
-                    qrDiv.innerHTML = '';
-                    qrContainer.style.display = 'inline-block';
-                    
-                    // Generate new QR Code
-                    new QRCode(qrDiv, {
-                        text: token,
-                        width: 256,
-                        height: 256,
-                        colorDark : "#0a0e17",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.H
-                    });
-                } else {
-                    alert('Failed to generate QR code');
+                // Get current location
+                if (!navigator.geolocation) {
+                    alert('Geolocation is not supported by your browser');
+                    return;
                 }
+
+                document.querySelector('.btn').innerText = 'Getting Location...';
+                document.querySelector('.btn').disabled = true;
+
+                navigator.geolocation.getCurrentPosition(async (position) => {
+                    const { latitude, longitude } = position.coords;
+                    const facultyUsername = localStorage.getItem('username');
+                    const duration = document.getElementById('duration').value;
+
+                    try {
+                        const response = await fetch('/api/generate_qr', { 
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                faculty_username: facultyUsername,
+                                latitude: latitude,
+                                longitude: longitude,
+                                duration_minutes: parseInt(duration)
+                            })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (response.ok) {
+                            const token = data.token;
+                            const expiresAt = new Date(data.expires_at);
+                            const qrContainer = document.getElementById('qrcode-container');
+                            const qrDiv = document.getElementById('qrcode');
+                            const expiryPara = document.getElementById('expiry-time');
+                            
+                            // Clear previous QR
+                            qrDiv.innerHTML = '';
+                            qrContainer.style.display = 'inline-block';
+                            expiryPara.innerText = `Expires at: ${expiresAt.toLocaleTimeString()}`;
+                            
+                            // Generate new QR Code
+                            new QRCode(qrDiv, {
+                                text: token,
+                                width: 256,
+                                height: 256,
+                                colorDark : "#0a0e17",
+                                colorLight : "#ffffff",
+                                correctLevel : QRCode.CorrectLevel.H
+                            });
+                        } else {
+                            alert('Failed to generate QR code: ' + (data.detail || 'Unknown error'));
+                        }
+                    } catch (error) {
+                        console.error('Error generating QR:', error);
+                        alert('Server connection error');
+                    } finally {
+                        document.querySelector('.btn').innerText = 'Generate New Session QR';
+                        document.querySelector('.btn').disabled = false;
+                    }
+                }, (error) => {
+                    alert('Error getting location: ' + error.message + '. Please enable location access.');
+                    document.querySelector('.btn').innerText = 'Generate New Session QR';
+                    document.querySelector('.btn').disabled = false;
+                }, { enableHighAccuracy: true });
+
             } catch (error) {
-                console.error('Error generating QR:', error);
-                alert('Server connection error');
+                console.error('Error in generateQR:', error);
+                alert('An unexpected error occurred');
+                document.querySelector('.btn').innerText = 'Generate New Session QR';
+                document.querySelector('.btn').disabled = false;
             }
         }
     </script>

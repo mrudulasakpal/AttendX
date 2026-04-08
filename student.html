@@ -93,33 +93,53 @@
             statusDiv.style.display = 'block';
             statusDiv.className = 'status-message';
             statusDiv.style.color = '#fff';
-            statusDiv.innerText = 'Processing attendance...';
+            statusDiv.innerText = 'Getting location to verify attendance...';
 
-            try {
-                const response = await fetch('/api/scan_qr', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ token: decodedText, roll_number: rollNumber })
-                });
-                
-                const data = await response.json();
-                
-                if (response.ok) {
-                    statusDiv.className = 'status-message status-success';
-                    statusDiv.innerText = data.message || 'Attendance Marked Successfully!';
-                } else {
-                    statusDiv.className = 'status-message status-error';
-                    statusDiv.innerText = data.detail || 'Failed to mark attendance';
-                }
-            } catch (err) {
+            if (!navigator.geolocation) {
                 statusDiv.className = 'status-message status-error';
-                statusDiv.innerText = 'Server connection error';
-            }
-            
-            // Allow another scan after a delay if they want, but usually stopping is good
-            setTimeout(() => {
+                statusDiv.innerText = 'Geolocation is not supported by your browser';
                 isProcessing = false;
-            }, 3000);
+                return;
+            }
+
+            navigator.geolocation.getCurrentPosition(async (position) => {
+                const { latitude, longitude } = position.coords;
+                statusDiv.innerText = 'Processing attendance...';
+
+                try {
+                    const response = await fetch('/api/scan_qr', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ 
+                            token: decodedText, 
+                            roll_number: rollNumber,
+                            latitude: latitude,
+                            longitude: longitude
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (response.ok) {
+                        statusDiv.className = 'status-message status-success';
+                        statusDiv.innerText = data.message || 'Attendance Marked Successfully!';
+                    } else {
+                        statusDiv.className = 'status-message status-error';
+                        statusDiv.innerText = data.detail || 'Failed to mark attendance';
+                    }
+                } catch (err) {
+                    statusDiv.className = 'status-message status-error';
+                    statusDiv.innerText = 'Server connection error';
+                } finally {
+                    setTimeout(() => {
+                        isProcessing = false;
+                    }, 3000);
+                }
+            }, (error) => {
+                statusDiv.className = 'status-message status-error';
+                statusDiv.innerText = 'Location error: ' + error.message + '. Please enable location access to mark attendance.';
+                isProcessing = false;
+            }, { enableHighAccuracy: true });
         }
 
         function onScanFailure(error) {

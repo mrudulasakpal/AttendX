@@ -5,3 +5,4 @@ sqlalchemy
 openpyxl
 python-multipart
 qrcode[pil]
+jinja2
